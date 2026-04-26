@@ -55,13 +55,6 @@ class CatalogSku(BaseModel):
     is_active: bool = True
 
 
-class PersonalizedCatalogSku(CatalogSku):
-    list_price_gbp: float
-    customer_price_gbp: float
-    discount_pct: float
-    pricing_tier: str
-
-
 class ProductSummary(BaseModel):
     id: UUID
     name: str
@@ -133,19 +126,9 @@ class UserLoginRequest(BaseModel):
     password: str
 
 
-class AwsCognitoExchangeRequest(BaseModel):
-    id_token: str = Field(min_length=20)
-
-
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-
-
-class AuthMeResponse(BaseModel):
-    subject: str
-    email: str | None = None
-    provider: str | None = None
 
 
 class GoogleOIDCStartResponse(BaseModel):

@@ -10,37 +10,13 @@ services:
       KAFKA_EVENTS_TOPIC: tails.events
       KAFKA_CONSUMER_GROUP: tails-api
       JWT_SECRET_KEY: super-secret-change-me
-      CORS_ORIGINS: http://localhost:5173
       GOOGLE_CLIENT_ID: stub-google-client-id
       GOOGLE_CLIENT_SECRET: stub-google-client-secret
       GOOGLE_REDIRECT_URI: http://localhost:8000/auth/google/callback
-      AWS_REGION: ${AWS_REGION:-eu-west-2}
-      AWS_COGNITO_USER_POOL_ID: ${AWS_COGNITO_USER_POOL_ID:-}
-      AWS_COGNITO_CLIENT_ID: ${AWS_COGNITO_CLIENT_ID:-}
     depends_on:
       - postgres
       - zookeeper
       - kafka
-
-  web:
-    build: ./frontend
-    container_name: tails-web
-    ports:
-      - "5173:5173"
-    env_file:
-      - ./frontend/.env
-    environment:
-      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
-      VITE_AWS_REGION: ${VITE_AWS_REGION:-eu-west-2}
-      VITE_AWS_USER_POOL_ID: ${VITE_AWS_USER_POOL_ID:-eu-west-2_0oPDAAj4A}
-      VITE_AWS_USER_POOL_CLIENT_ID: ${VITE_AWS_USER_POOL_CLIENT_ID:-5njq4pm0g7psrqgcmjbmdh34c3}
-      VITE_AWS_COGNITO_AUTHORITY: ${VITE_AWS_COGNITO_AUTHORITY:-https://cognito-idp.eu-west-2.amazonaws.com/eu-west-2_0oPDAAj4A}
-      VITE_AWS_COGNITO_DOMAIN: ${VITE_AWS_COGNITO_DOMAIN:-https://eu-west-20opdaaj4a.auth.eu-west-2.amazoncognito.com}
-      VITE_AWS_REDIRECT_URI: ${VITE_AWS_REDIRECT_URI:-http://localhost:5173}
-      VITE_AWS_LOGOUT_URI: ${VITE_AWS_LOGOUT_URI:-http://localhost:5173}
-      VITE_AWS_OIDC_SCOPE: ${VITE_AWS_OIDC_SCOPE:-email openid phone}
-    depends_on:
-      - api
 
   postgres:
     image: postgres:16

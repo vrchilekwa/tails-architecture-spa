@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from uuid import uuid4
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -24,10 +23,6 @@ def create_access_token(subject: str, expires_minutes: int | None = None, extra_
         "sub": subject,
         "exp": datetime.now(timezone.utc) + expire_delta,
         "iat": datetime.now(timezone.utc),
-        "jti": str(uuid4()),
-        "iss": settings.jwt_issuer,
-        "aud": settings.jwt_audience,
-        "ver": settings.jwt_token_version,
     }
     if extra_claims:
         to_encode.update(extra_claims)
@@ -36,13 +31,7 @@ def create_access_token(subject: str, expires_minutes: int | None = None, extra_
 
 def decode_access_token(token: str) -> dict[str, Any]:
     try:
-        return jwt.decode(
-            token,
-            settings.jwt_secret_key,
-            algorithms=[settings.jwt_algorithm],
-            issuer=settings.jwt_issuer,
-            audience=settings.jwt_audience,
-        )
+        return jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
     except JWTError as exc:
         raise ValueError("Invalid token") from exc
 

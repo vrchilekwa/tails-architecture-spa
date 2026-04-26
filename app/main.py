@@ -1,15 +1,12 @@
 import secrets
 from collections import defaultdict
-from hashlib import sha256
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session, joinedload
 
 from app.auth import build_google_authorization_url, create_access_token, decode_access_token, hash_password, verify_password
-from app.aws_cognito import verify_cognito_id_token
 from app.catalog_seed import seed_catalog_if_empty
 from app.config import settings
 from app.database import Base, engine, get_db, SessionLocal
@@ -20,14 +17,11 @@ from app.models import (
     CheckoutRequest,
     DogProfile,
     DogProfileCreate,
-    AwsCognitoExchangeRequest,
-    AuthMeResponse,
     GoogleOIDCStartResponse,
     HealthResponse,
     Order,
     PlanQuoteRequest,
     PlanQuoteResponse,
-    PersonalizedCatalogSku,
     ProductSummary,
     Subscription,
     SubscriptionCreate,
@@ -40,13 +34,6 @@ from app.order_mapping import order_orm_to_api
 app = FastAPI(title=settings.app_name, version=settings.app_version, description="Target-state backend with PostgreSQL, Kafka, JWT, and OIDC stubs.")
 events = EventPublisher()
 consumer = EventConsumer()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 @app.on_event("startup")
@@ -68,7 +55,6 @@ async def shutdown() -> None:
 
 
 _bearer = HTTPBearer(auto_error=False)
-DEFAULT_PERMISSIONS = ["catalog:read:personalized", "orders:read:self"]
 
 
 def get_current_subject(
@@ -83,26 +69,6 @@ def get_current_subject(
     return str(claims.get("sub"))
 
 
-def get_current_claims(
-    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
-) -> dict:
-    if credentials is None or (credentials.scheme or "").lower() != "bearer" or not credentials.credentials:
-        raise HTTPException(status_code=401, detail="Missing bearer token")
-    try:
-        return decode_access_token(credentials.credentials)
-    except ValueError as exc:
-        raise HTTPException(status_code=401, detail="Invalid token") from exc
-
-
-def require_permission(permission: str):
-    def _check_permission(claims: dict = Depends(get_current_claims)) -> None:
-        permissions = claims.get("permissions")
-        if not isinstance(permissions, list) or permission not in permissions:
-            raise HTTPException(status_code=403, detail=f"Missing permission: {permission}")
-
-    return _check_permission
-
-
 def _sku_to_catalog(s: SkuORM) -> CatalogSku:
     p = s.product
     return CatalogSku(
@@ -115,26 +81,6 @@ def _sku_to_catalog(s: SkuORM) -> CatalogSku:
         unit_price_gbp=s.unit_price_gbp,
         net_weight_g=s.net_weight_g,
         is_active=s.is_active,
-    )
-
-
-def _subject_discount_pct(subject: str, sku_code: str) -> float:
-    digest = sha256(f"{subject}:{sku_code}".encode("utf-8")).digest()
-    # Deterministic per-user per-sku discount between 0% and 12%.
-    return round((digest[0] % 13), 2)
-
-
-def _sku_to_personalized_catalog(s: SkuORM, subject: str) -> PersonalizedCatalogSku:
-    base = _sku_to_catalog(s)
-    discount_pct = _subject_discount_pct(subject, s.sku)
-    customer_price = round(base.unit_price_gbp * (1 - (discount_pct / 100.0)), 2)
-    tier = "contract" if discount_pct >= 8 else "standard"
-    return PersonalizedCatalogSku(
-        **base.model_dump(),
-        list_price_gbp=base.unit_price_gbp,
-        customer_price_gbp=customer_price,
-        discount_pct=discount_pct,
-        pricing_tier=tier,
     )
 
 
@@ -154,23 +100,6 @@ def list_catalog(db: Session = Depends(get_db)) -> list[CatalogSku]:
         .all()
     )
     return [_sku_to_catalog(s) for s in rows]
-
-
-@app.get("/catalog/me", response_model=list[PersonalizedCatalogSku], tags=["Catalog"])
-def list_catalog_for_current_user(
-    db: Session = Depends(get_db),
-    subject: str = Depends(get_current_subject),
-    _: None = Depends(require_permission("catalog:read:personalized")),
-) -> list[PersonalizedCatalogSku]:
-    """Authenticated catalog view with mock deterministic user-specific pricing."""
-    rows = (
-        db.query(SkuORM)
-        .options(joinedload(SkuORM.product))
-        .filter(SkuORM.is_active.is_(True))
-        .order_by(SkuORM.sku)
-        .all()
-    )
-    return [_sku_to_personalized_catalog(s, subject=subject) for s in rows]
 
 
 @app.get("/catalog/products", response_model=list[ProductSummary], tags=["Catalog"])
@@ -202,14 +131,7 @@ def signup(payload: UserSignupRequest, db: Session = Depends(get_db)) -> TokenRe
     user = UserORM(email=payload.email, hashed_password=hash_password(payload.password), provider="local")
     db.add(user)
     db.commit()
-    token = create_access_token(
-        subject=str(user.id),
-        extra_claims={
-            "email": user.email,
-            "provider": "local",
-            "permissions": DEFAULT_PERMISSIONS,
-        },
-    )
+    token = create_access_token(subject=str(user.id), extra_claims={"email": user.email, "provider": "local"})
     return TokenResponse(access_token=token)
 
 
@@ -218,53 +140,8 @@ def login(payload: UserLoginRequest, db: Session = Depends(get_db)) -> TokenResp
     user = db.query(UserORM).filter(UserORM.email == payload.email).first()
     if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    token = create_access_token(
-        subject=str(user.id),
-        extra_claims={
-            "email": user.email,
-            "provider": user.provider,
-            "permissions": DEFAULT_PERMISSIONS,
-        },
-    )
+    token = create_access_token(subject=str(user.id), extra_claims={"email": user.email, "provider": user.provider})
     return TokenResponse(access_token=token)
-
-
-@app.post("/auth/aws/exchange", response_model=TokenResponse, tags=["Auth"])
-def exchange_aws_cognito_token(payload: AwsCognitoExchangeRequest, db: Session = Depends(get_db)) -> TokenResponse:
-    try:
-        claims = verify_cognito_id_token(payload.id_token)
-    except ValueError as exc:
-        raise HTTPException(status_code=401, detail=str(exc)) from exc
-    cognito_sub = str(claims.get("sub") or "")
-    if not cognito_sub:
-        raise HTTPException(status_code=401, detail="AWS token missing sub claim")
-    email = claims.get("email") or f"cognito_{cognito_sub[:8]}@stub.tails.com"
-
-    user = db.query(UserORM).filter(UserORM.email == email).first()
-    if not user:
-        user = UserORM(email=email, hashed_password=hash_password(secrets.token_urlsafe(24)), provider="aws-cognito")
-        db.add(user)
-        db.commit()
-
-    token = create_access_token(
-        subject=str(user.id),
-        extra_claims={
-            "email": user.email,
-            "provider": "aws-cognito",
-            "aws_sub": cognito_sub,
-            "permissions": DEFAULT_PERMISSIONS,
-        },
-    )
-    return TokenResponse(access_token=token)
-
-
-@app.get("/auth/me", response_model=AuthMeResponse, tags=["Auth"])
-def auth_me(claims: dict = Depends(get_current_claims)) -> AuthMeResponse:
-    return AuthMeResponse(
-        subject=str(claims.get("sub") or ""),
-        email=claims.get("email"),
-        provider=claims.get("provider"),
-    )
 
 
 @app.get("/auth/google/start", response_model=GoogleOIDCStartResponse, tags=["Auth"])
@@ -284,14 +161,7 @@ def google_callback(code: str, db: Session = Depends(get_db)) -> TokenResponse:
         user = UserORM(email=stub_email, hashed_password=hash_password(secrets.token_urlsafe(24)), provider="google")
         db.add(user)
         db.commit()
-    token = create_access_token(
-        subject=str(user.id),
-        extra_claims={
-            "email": user.email,
-            "provider": "google",
-            "permissions": DEFAULT_PERMISSIONS,
-        },
-    )
+    token = create_access_token(subject=str(user.id), extra_claims={"email": user.email, "provider": "google"})
     return TokenResponse(access_token=token)
 
 
@@ -490,12 +360,7 @@ async def checkout(payload: CheckoutRequest, db: Session = Depends(get_db), subj
 
 
 @app.get("/orders", response_model=list[Order], tags=["Orders"])
-def list_orders(
-    customer_id: str,
-    db: Session = Depends(get_db),
-    subject: str = Depends(get_current_subject),
-    _: None = Depends(require_permission("orders:read:self")),
-) -> list[Order]:
+def list_orders(customer_id: str, db: Session = Depends(get_db), subject: str = Depends(get_current_subject)) -> list[Order]:
     if customer_id != subject:
         raise HTTPException(status_code=403, detail="customer_id must match authenticated user")
     rows = (
@@ -509,12 +374,7 @@ def list_orders(
 
 
 @app.get("/orders/{order_id}", response_model=Order, tags=["Orders"])
-def get_order(
-    order_id: UUID,
-    db: Session = Depends(get_db),
-    subject: str = Depends(get_current_subject),
-    _: None = Depends(require_permission("orders:read:self")),
-) -> Order:
+def get_order(order_id: UUID, db: Session = Depends(get_db), subject: str = Depends(get_current_subject)) -> Order:
     order = (
         db.query(OrderORM)
         .options(joinedload(OrderORM.lines))
