@@ -2,8 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "react-oidc-context";
 import { BrowserRouter, NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { exchangeAwsTokenForAppToken, fetchAuthMe, fetchCatalog, fetchMyCatalog } from "./api";
-import { mountVueCatalogApp } from "./microapps/vueCatalogApp";
-import { mountAngularSessionApp } from "./microapps/angularSessionApp";
 
 function App() {
   const auth = useAuth();
@@ -158,166 +156,102 @@ function App() {
           <Route
             path="/guest"
             element={
-              <VueGuestContainer mode="guest" items={publicCatalog} summary={publicSummary} />
+              <section className="panel">
+                <h2>Guest Storefront</h2>
+                <p className="summaryLine">{publicSummary}</p>
+                <div className="cardGrid">
+                  {publicCatalog.map((item) => (
+                    <article className="catalogCard" key={item.sku}>
+                      <p className="sku">{item.sku}</p>
+                      <h3>{item.name || "Unnamed item"}</h3>
+                      <p>Public unit price: {formatCurrency(item.unit_price_gbp)}</p>
+                      <span className="badge badgeGuest">Guest price</span>
+                    </article>
+                  ))}
+                </div>
+              </section>
             }
           />
           <Route
             path="/host"
             element={
-              <>
+              <section className="panel">
+                <h2>Host Console</h2>
                 {!auth.isAuthenticated ? (
-                  <section className="panel">
-                    <h2>Host Console</h2>
-                    <div className="hostGate">
-                      <p>Hosts can sign in to access personalized prices and protected APIs.</p>
-                      <button type="button" onClick={() => auth.signinRedirect()}>
-                        Sign in as host
-                      </button>
-                    </div>
-                  </section>
+                  <div className="hostGate">
+                    <p>Hosts can sign in to access personalized prices and protected APIs.</p>
+                    <button type="button" onClick={() => auth.signinRedirect()}>
+                      Sign in as host
+                    </button>
+                  </div>
                 ) : null}
 
-                {auth.isAuthenticated && !isHostReady ? (
-                  <section className="panel">
-                    <p className="status">Preparing host session...</p>
-                  </section>
-                ) : null}
+                {auth.isAuthenticated && !isHostReady ? <p className="status">Preparing host session...</p> : null}
 
                 {isHostReady ? (
                   <>
-                    <section className="panel">
-                      <h2>Host Metrics</h2>
-                      <div className="hostMetrics">
-                        <article className="metric">
-                          <span>Host SKUs</span>
-                          <strong>{personalizedCatalog.length}</strong>
+                    <div className="hostMetrics">
+                      <article className="metric">
+                        <span>Host SKUs</span>
+                        <strong>{personalizedCatalog.length}</strong>
+                      </article>
+                      <article className="metric">
+                        <span>Host-only SKUs</span>
+                        <strong>{personalizedOnlyCount}</strong>
+                      </article>
+                      <article className="metric">
+                        <span>Pricing summary</span>
+                        <strong>{protectedSummary}</strong>
+                      </article>
+                    </div>
+                    <div className="cardGrid">
+                      {personalizedCatalog.map((item) => (
+                        <article className="catalogCard" key={item.sku}>
+                          <p className="sku">{item.sku}</p>
+                          <h3>{item.name || "Unnamed item"}</h3>
+                          <p>Customer price: {formatCurrency(item.customer_price_gbp)}</p>
+                          <span className="badge badgeHost">Host price</span>
                         </article>
-                        <article className="metric">
-                          <span>Host-only SKUs</span>
-                          <strong>{personalizedOnlyCount}</strong>
-                        </article>
-                        <article className="metric">
-                          <span>Pricing summary</span>
-                          <strong>{protectedSummary}</strong>
-                        </article>
-                      </div>
-                    </section>
-                    <VueGuestContainer mode="host" items={personalizedCatalog} summary={protectedSummary} />
+                      ))}
+                    </div>
                   </>
                 ) : null}
-              </>
+              </section>
             }
           />
           <Route
             path="/session"
             element={
-              <AngularSessionContainer
-                appToken={appToken}
-                claims={appTokenClaims}
-                me={me}
-                isAuthenticated={auth.isAuthenticated}
-                onSignIn={() => auth.signinRedirect()}
-                onLogout={handleLogout}
-              />
+              <>
+                <section className="panel">
+                  <h2>Session Controls</h2>
+                  <div className="toggleRow">
+                    <button type="button" onClick={() => auth.signinRedirect()} disabled={auth.isAuthenticated}>
+                      Sign in
+                    </button>
+                    <button type="button" onClick={handleLogout} disabled={!auth.isAuthenticated}>
+                      Logout
+                    </button>
+                  </div>
+                  <p className="token">{appToken || "No app token yet."}</p>
+                </section>
+
+                <section className="panel">
+                  <h2>Protected /auth/me Result</h2>
+                  <pre>{JSON.stringify(me, null, 2)}</pre>
+                </section>
+
+                <section className="panel">
+                  <h2>Current App JWT Claims</h2>
+                  <pre>{JSON.stringify(appTokenClaims, null, 2)}</pre>
+                </section>
+              </>
             }
           />
           <Route path="*" element={<Navigate to="/guest" replace />} />
         </Routes>
       </main>
     </BrowserRouter>
-  );
-}
-
-function VueGuestContainer({ mode, items, summary }) {
-  const [loadError, setLoadError] = useState("");
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    let cleanup = () => {};
-    let isMounted = true;
-
-    async function mountApp() {
-      setLoadError("");
-      setIsReady(false);
-      try {
-        const root = document.getElementById(`vue-guest-root-${mode}`);
-        if (!root) {
-          return;
-        }
-        cleanup = await mountVueCatalogApp(root, { mode, items, summary });
-        if (isMounted) {
-          setIsReady(true);
-        }
-      } catch (err) {
-        if (isMounted) {
-          setLoadError(err instanceof Error ? err.message : "Failed loading Vue guest app.");
-        }
-      }
-    }
-
-    mountApp();
-    return () => {
-      isMounted = false;
-      cleanup();
-    };
-  }, [items, mode, summary]);
-
-  return (
-    <>
-      {!isReady && !loadError ? <section className="panel">Loading Vue guest application...</section> : null}
-      {loadError ? <section className="panel error">Vue guest app failed: {loadError}</section> : null}
-      <div id={`vue-guest-root-${mode}`} />
-    </>
-  );
-}
-
-function AngularSessionContainer({ appToken, claims, me, isAuthenticated, onSignIn, onLogout }) {
-  const [loadError, setLoadError] = useState("");
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    let cleanup = () => {};
-    let isMounted = true;
-
-    async function mountApp() {
-      setLoadError("");
-      setIsReady(false);
-      try {
-        const root = document.getElementById("angular-session-root");
-        if (!root) {
-          return;
-        }
-        cleanup = await mountAngularSessionApp(root, {
-          appToken,
-          claims,
-          me,
-          isAuthenticated,
-          onSignIn,
-          onLogout,
-        });
-        if (isMounted) {
-          setIsReady(true);
-        }
-      } catch (err) {
-        if (isMounted) {
-          setLoadError(err instanceof Error ? err.message : "Failed loading Angular guest app.");
-        }
-      }
-    }
-
-    mountApp();
-    return () => {
-      isMounted = false;
-      cleanup();
-    };
-  }, [appToken, claims, isAuthenticated, me, onLogout, onSignIn]);
-
-  return (
-    <>
-      {!isReady && !loadError ? <section className="panel">Loading Angular guest application...</section> : null}
-      {loadError ? <section className="panel error">Angular guest app failed: {loadError}</section> : null}
-      <div id="angular-session-root" />
-    </>
   );
 }
 
@@ -349,6 +283,14 @@ function decodeJwtClaims(token) {
   } catch {
     return { note: "Unable to decode JWT claims." };
   }
+}
+
+function formatCurrency(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) {
+    return "-";
+  }
+  return `£${amount.toFixed(2)}`;
 }
 
 export default App;
