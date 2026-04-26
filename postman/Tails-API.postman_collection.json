@@ -1,0 +1,443 @@
+{
+	"info": {
+		"name": "Tails API",
+		"description": "Target-state backend: catalog (SKUs), auth, dog profiles, plan quotes, subscriptions, checkout (cart line items), orders. Run **Auth** first; tests save `token`, `customer_id`, `order_id` where applicable.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000"
+		},
+		{
+			"key": "token",
+			"value": ""
+		},
+		{
+			"key": "customer_id",
+			"value": ""
+		},
+		{
+			"key": "dog_id",
+			"value": ""
+		},
+		{
+			"key": "subscription_id",
+			"value": ""
+		},
+		{
+			"key": "order_id",
+			"value": ""
+		}
+	],
+	"item": [
+		{
+			"name": "Health",
+			"item": [
+				{
+					"name": "GET health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{base_url}}/health"
+					}
+				}
+			]
+		},
+		{
+			"name": "Catalog",
+			"item": [
+				{
+					"name": "GET catalog (flat SKUs)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{base_url}}/catalog"
+					}
+				},
+				{
+					"name": "GET catalog by product",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{base_url}}/catalog/products"
+					}
+				}
+			]
+		},
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "POST signup",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const json = pm.response.json();",
+									"if (json && json.access_token) {",
+									"  pm.collectionVariables.set('token', json.access_token);",
+									"  try {",
+									"    const payload = JSON.parse(atob(json.access_token.split('.')[1]));",
+									"    if (payload.sub) { pm.collectionVariables.set('customer_id', payload.sub); }",
+									"  } catch (e) { console.warn('JWT decode skipped', e); }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"demo@example.com\",\n  \"password\": \"password12\"\n}"
+						},
+						"url": "{{base_url}}/auth/signup"
+					}
+				},
+				{
+					"name": "POST login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const json = pm.response.json();",
+									"if (json && json.access_token) {",
+									"  pm.collectionVariables.set('token', json.access_token);",
+									"  try {",
+									"    const payload = JSON.parse(atob(json.access_token.split('.')[1]));",
+									"    if (payload.sub) { pm.collectionVariables.set('customer_id', payload.sub); }",
+									"  } catch (e) { console.warn('JWT decode skipped', e); }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"demo@example.com\",\n  \"password\": \"password12\"\n}"
+						},
+						"url": "{{base_url}}/auth/login"
+					}
+				},
+				{
+					"name": "GET Google OIDC start",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": "{{base_url}}/auth/google/start"
+					}
+				}
+			]
+		},
+		{
+			"name": "Dog profile",
+			"item": [
+				{
+					"name": "POST create dog",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  const j = pm.response.json();",
+									"  if (j && j.id) { pm.collectionVariables.set('dog_id', j.id); }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Baxter\",\n  \"breed\": \"Labrador\",\n  \"age_years\": 3,\n  \"weight_kg\": 28.5,\n  \"activity_level\": \"moderate\",\n  \"health_goals\": [\"joints\", \"skin\"],\n  \"sensitivities\": [\"chicken\"]\n}"
+						},
+						"url": "{{base_url}}/dogs"
+					}
+				},
+				{
+					"name": "GET dog by id",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/dogs/:dog_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"dogs",
+								":dog_id"
+							],
+							"variable": [
+								{
+									"key": "dog_id",
+									"value": "{{dog_id}}"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Nutrition",
+			"item": [
+				{
+					"name": "POST plan quote",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"dog_id\": \"{{dog_id}}\",\n  \"include_wet_food\": true,\n  \"include_treats\": false,\n  \"include_dental_chews\": false\n}"
+						},
+						"url": "{{base_url}}/plans/quote"
+					}
+				}
+			]
+		},
+		{
+			"name": "Subscription",
+			"item": [
+				{
+					"name": "POST create subscription",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  const j = pm.response.json();",
+									"  if (j && j.id) { pm.collectionVariables.set('subscription_id', j.id); }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"dog_id\": \"{{dog_id}}\",\n  \"cadence_days\": 30\n}"
+						},
+						"url": "{{base_url}}/subscriptions"
+					}
+				},
+				{
+					"name": "POST pause subscription",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/subscriptions/:subscription_id/pause",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"subscriptions",
+								":subscription_id",
+								"pause"
+							],
+							"variable": [
+								{
+									"key": "subscription_id",
+									"value": "{{subscription_id}}"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Checkout and orders",
+			"item": [
+				{
+					"name": "POST checkout",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  const j = pm.response.json();",
+									"  if (j && j.id) { pm.collectionVariables.set('order_id', j.id); }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"subscription_id\": \"{{subscription_id}}\",\n  \"lines\": [\n    { \"sku\": \"TAILS-DRY-ADL-CH-2KG\", \"quantity\": 1 },\n    { \"sku\": \"TAILS-SVC-BOX-GB\", \"quantity\": 1 }\n  ],\n  \"promo_code\": null\n}"
+						},
+						"url": "{{base_url}}/checkout"
+					}
+				},
+				{
+					"name": "GET list orders",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": "{{base_url}}/orders?customer_id={{customer_id}}"
+					}
+				},
+				{
+					"name": "GET order by id",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/orders/:order_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"orders",
+								":order_id"
+							],
+							"variable": [
+								{
+									"key": "order_id",
+									"value": "{{order_id}}"
+								}
+							]
+						}
+					}
+				}
+			]
+		}
+	]
+}

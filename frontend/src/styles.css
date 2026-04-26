@@ -1,0 +1,200 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.container {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 2rem 1rem 4rem;
+}
+
+.hero {
+  margin-bottom: 1rem;
+}
+
+.hero h1 {
+  margin: 0.2rem 0 0.6rem;
+}
+
+.eyebrow {
+  margin: 0;
+  color: #7dd3fc;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.heroMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.panel {
+  background: #1e293b;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+label {
+  display: block;
+  margin-bottom: 0.75rem;
+}
+
+input {
+  margin-top: 0.25rem;
+  display: block;
+  width: 100%;
+  padding: 0.5rem;
+}
+
+button {
+  background: #2563eb;
+  border: 0;
+  color: white;
+  border-radius: 6px;
+  padding: 0.5rem 0.8rem;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.status {
+  color: #93c5fd;
+}
+
+.error {
+  color: #fca5a5;
+}
+
+.token {
+  word-break: break-all;
+  font-size: 0.85rem;
+}
+
+pre {
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+.toggleRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.topNav {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.tab {
+  display: inline-block;
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #e2e8f0;
+  border-radius: 6px;
+  padding: 0.5rem 0.8rem;
+  text-decoration: none;
+}
+
+.tab.active {
+  background: #2563eb;
+  border-color: #3b82f6;
+}
+
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+
+.catalogCard {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.catalogCard h3 {
+  margin: 0.25rem 0 0.5rem;
+}
+
+.sku {
+  margin: 0;
+  color: #93c5fd;
+  font-size: 0.8rem;
+}
+
+.summaryLine {
+  color: #93c5fd;
+  font-size: 0.9rem;
+  margin: 0.35rem 0 0.7rem;
+}
+
+.hostGate {
+  border: 1px dashed #334155;
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.hostMetrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.metric {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.metric span {
+  display: block;
+  color: #93c5fd;
+  font-size: 0.85rem;
+  margin-bottom: 0.35rem;
+}
+
+.metric strong {
+  font-size: 1rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.badgeGuest {
+  color: #93c5fd;
+  border: 1px solid #1d4ed8;
+  background: #172554;
+}
+
+.badgeHost {
+  color: #86efac;
+  border: 1px solid #15803d;
+  background: #052e16;
+}
